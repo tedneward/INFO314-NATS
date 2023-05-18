@@ -1,132 +1,124 @@
-import java.io.*;
 import io.nats.client.*;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern; 
-import java.time.*;
+import java.util.regex.Pattern;
+import java.time.Duration;
 import java.util.Scanner;
 
 public class StockBroker {
-
     private String brokerName;
-    private Dispatcher d;
-    private Connection nc;
+    private Dispatcher dispatcher;
+    private Connection natsConnection;
 
-
-    //This logic is specific to the instance of a specific StockBroker. Allowing each client to be processed by the broker and only that broker. 
     public StockBroker(String brokerName, Connection connection) {
         this.brokerName = brokerName;
-        this.nc = connection;
-        this.d = connection.createDispatcher((msg) -> {
-            // Handle the received message
-            String order = new String(msg.getData());
-            processOrder(order);
-        });
+        this.natsConnection = connection;
+        this.dispatcher = connection.createDispatcher(this::processOrder);
     }
 
     public void subscribe(String topic) {
-        d.subscribe(topic);
+        dispatcher.subscribe(topic);
     }
 
     public void unsubscribe(String topic) {
-        d.unsubscribe(topic);
+        dispatcher.unsubscribe(topic);
     }
 
-    public void processOrder(String order) {
-        // Perform necessary calculations and order execution logic
-        // Sleep for a few seconds to simulate order execution
+    private void processOrder(Message message) {
+        String order = new String(message.getData());
+
         try {
-            Thread.sleep(3000);
+            Thread.sleep(3000); // Simulate order execution
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        // Calculate total order amount with 10% fee
         double totalAmount = calculateTotalAmount(order);
-
-        // Construct the response message
         String response = constructResponse(order, totalAmount);
-
-        // Publish the response message back to the client
         publishResponse(response);
     }
 
-    private static double calculateTotalAmount(String order) {
-        // Define the regular expression pattern to match the order format
+    private double calculateTotalAmount(String order) {
         Pattern pattern = Pattern.compile("<(buy|sell) symbol=\"(\\w+)\" amount=\"(\\d+)\"\\s*/>");
         Matcher matcher = pattern.matcher(order);
-    
-        // Check if the order matches the expected format
+
         if (matcher.matches()) {
             String type = matcher.group(1);
             String symbol = matcher.group(2);
             double amount = Double.parseDouble(matcher.group(3));
-            
-
-            //Get this somehow from the the stock market class
-            double stockPrice = getStockPrice(symbol); // Assuming you have a method to retrieve the stock price
+            double stockPrice = getStockPrice(symbol);
             double fee = 0.1 * (type.equals("buy") ? stockPrice * amount : -stockPrice * amount);
             double totalAmount = type.equals("buy") ? stockPrice * amount + fee : stockPrice * amount - fee;
-    
+
             return totalAmount;
         }
-    
-        // Return a default value or throw an exception if the order format is invalid
+
         return 0.0;
     }
 
-    private static double getStockPrice(String symbol){
-        // going to be getting this from Matt's code 
+    private double getStockPrice(String symbol) {
+        String xmlData = subscribeAndGetXmlData(symbol);
+        return extractStockPrice(xmlData);
+    }
+
+    private String subscribeAndGetXmlData(String symbol) {
+        String topic = "stockExchange" + symbol;
+        final String[] xmlData = {""};
+
+        MessageHandler messageHandler = msg -> {
+            xmlData[0] = new String(msg.getData());
+            dispatcher.unsubscribe(topic);
+        };
+
+        dispatcher.subscribe(topic, messageHandler);
+
+        try {
+            Thread.sleep(1000); // Wait for message to be received
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        return xmlData[0];
+    }
+
+    private double extractStockPrice(String xmlData) {
+        Pattern pattern = Pattern.compile("<price>(\\d+\\.\\d+)</price>");
+        Matcher matcher = pattern.matcher(xmlData);
+
+        if (matcher.find()) {
+            String priceString = matcher.group(1);
+            return Double.parseDouble(priceString);
+        }
+
+        return 0.0;
     }
 
     private String constructResponse(String order, double totalAmount) {
-        // Construct the response message to be sent back to the client
-        String response = "<orderReceipt>" + order + "<complete amount=\"" + totalAmount + "\" /></orderReceipt>";
-        return "";
+        return "<orderReceipt>" + order + "<complete amount=\"" + totalAmount + "\" /></orderReceipt>";
     }
 
     private void publishResponse(String response) {
-        // Publish the response message to the client
         String responseTopic = "response." + brokerName;
-        nc.publish(responseTopic, response.getBytes());
+        natsConnection.publish(responseTopic, response.getBytes());
     }
 
-
-
-    public static void main(String... args) throws IOException, InterruptedException{
-        //Need to connect to the NATS Server
-        
-
-        // Get the broker name from command-line arguments, but not sure if it will be set up like that
-        // Prompt the user to enter the broker name
+    public static void main(String... args) {
         Scanner scanner = new Scanner(System.in);
         System.out.print("Enter the broker name: ");
         String brokerName = scanner.nextLine();
 
-
-        try{
+        try {
             Connection connection = Nats.connect("nats://localhost:4222");
 
-          
-
-            // Create an instance of the StockBroker
-            StockBroker stockBroker = new StockBroker(brokerName,connection);
-           
-            // Subscribe to the broker's topic
+            StockBroker stockBroker = new StockBroker(brokerName, connection);
             stockBroker.subscribe(brokerName);
 
-
-            //Might not need this, look into the duration class. 
-            // Run the NATS event loop to receive messages
-            nc.flush(Duration.ZERO); // Flush any buffered messages
-            nc.flush(Duration.ofSeconds(100)); // Wait for a 100 second to receive messages
-            nc.close(); // Close the NATS connection
-
-        }catch(Exception e){
+            connection.flush(Duration.ZERO); // Flush any buffered messages
+            connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
+            connection.close(); // Close the NATS connection
+        } catch (Exception e) {
             e.printStackTrace();
         }
-
-
-
     }
-    
 }
+
+
