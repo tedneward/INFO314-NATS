@@ -1,55 +1,74 @@
 import io.nats.client.*;
 import java.io.*;
-import java.util.*;
-import java.nio.*;
+import java.time.Duration;
+import java.util.Scanner;
 import javax.xml.parsers.*;
-import javax.xml.transform.*;
-import javax.xml.xpath.*;
-import org.w3c.dom.*;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.nio.charset.StandardCharsets;
+import javax.xml.xpath.*;
+import org.w3c.dom.*;
 
-public class StockMarketClient{
+public class StockBrokerClient{
+    private String brokerName;
+    private Connection connection;
+
+    public StockBrokerClient(String brokerName, Connection connection) {
+        this.brokerName = brokerName;
+        this.connection = connection;
+    }
+
     public static void main(String...args) throws Exception {
-        Connection nc = Nats.connect("nats://localhost:4222");
-        String broker="BestBroker";
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter the broker name: ");
+        String brokerName = scanner.nextLine();
 
-        // uncomment when StockPublisher connection made and pass response into "testing"
-        // Subscription sub = nc.subscribe("stockPublisher");
-        // Message stocks = sub.nextMessage(Duration.ofMillis(500));
-        // String response = new String(stocks.getData(), StandardCharsets.UTF_8);
+        try {
+            Connection connection = Nats.connect("nats://localhost:4222");
+            StockBrokerClient stockClient = new StockBrokerClient(brokerName, connection);
+            stockClient.subscribe("stockmarket"); 
 
-        // this is a sample of what a message from 
-        String testing = "<message sent=\"" + "2023-05-17 13:37:45" + "\"><stock><name>AMZN</name><adjustment>40</adjustment><adjustedPrice>6000</adjustedPrice></stock></message>";;
-        
-        Object[] output=checkingStrategy(testing);
-
-        if (output != null){
-            String action= (String) output[0];
-            String stockName = (String) output[1];
-            int numberOfShares = (int) output[2];
-            String xmlRequest = xmlRequestBuilder(action, stockName, numberOfShares);
-            System.out.println(xmlRequest);
-
-            // nc.publish(broker, xmlRequest.getBytes());
-
-            // uncomment once broker connection established
-            // Future<Message> incoming = nc.request(broker, xmlRequest.getBytes()); // awaits response from broker
-            // Message msg = incoming.get(500, TimeUnit.MILLISECONDS);
-            // String brokerResponse = new String(msg.getData(), StandardCharsets.UTF_8);
-
-            // Testing broker Response parser
-            String brokerResponse = "<orderReceipt><sell symbol=\"AMZN\" amount=\"50\" /><complete amount=\"180000\" /></orderReceipt>";
-            System.out.println("Response from broker");
-            System.out.println(brokerResponse);
-
-            updatePortfolio(stockName, numberOfShares, action);
+            connection.flush(Duration.ZERO); // Flush any buffered messages
+            connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
+            connection.close(); // Close the NATS connection
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
+    public void subscribe(String market) {
+        try {
+            Dispatcher dispatcher = connection.createDispatcher((msg) -> {
+                String message = new String(msg.getData());
+                Object[] output = checkingStrategy(message);
+
+                if (output != null) {
+                    String action = (String) output[0];
+                    String stockName = (String) output[1];
+                    int numberOfShares = (int) output[2];
+                    String xmlRequest = xmlRequestBuilder(action, stockName, numberOfShares);
+                    System.out.println(xmlRequest);
+
+                    // This sends buy/sell request to broker
+                    // Future<Message> incoming = nc.request(brokerName, xmlRequest.getBytes()); // awaits response from broker
+                    // Message msg = incoming.get(500, TimeUnit.MILLISECONDS);
+                    // String brokerResponse = new String(msg.getData(), StandardCharsets.UTF_8);
+                    updatePortfolio(stockName, numberOfShares, action);
+                }
+            });
+
+            dispatcher.subscribe(market);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    // Takes String message from publisher and against checks strategy document
+    // returns Object[] with the action, stock name, amount or null for do nothing
     public static Object[] checkingStrategy(String message){
         Object[] params = new Object[3];
         try{
@@ -104,9 +123,10 @@ public class StockMarketClient{
                         if (hasAbove && aboveNode != null) {
                             int aboveThreshold = Integer.parseInt(aboveNode.getTextContent());
                             if (adjustment > aboveThreshold) {
+                                int sellValue=checkPortfolio(name);
                                 params[0] = "sell";
                                 params[1] = stockSymbol;
-                                params[2] = 50;
+                                params[2] = sellValue;
                                 return params;
                             }
                         }   
@@ -119,6 +139,7 @@ public class StockMarketClient{
         return null;
     }
 
+    // creates xml request to stock broker
     public static String xmlRequestBuilder(String action, String stockName, int numberOfShares){
         try{
         DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
@@ -147,6 +168,7 @@ public class StockMarketClient{
         return null;
     }
 
+    // updates portfolio returns nothing
     public static void updatePortfolio(String symbol, int amount, String action){
         try{
             File xmlFile = new File("../Clients/portfolio-1.xml");
@@ -204,4 +226,28 @@ public class StockMarketClient{
             e.printStackTrace();
         }
     }
+
+    // returns current number of stock in portfolio
+    public static int checkPortfolio(String stockName){
+        int currentStockNumber=-1;
+        try{
+            File strategyXmlFile = new File("../Clients/portfolio-1.xml");
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(strategyXmlFile);
+            doc.getDocumentElement().normalize();
+            NodeList stockList = doc.getElementsByTagName("stock");
+            for (int i = 0; i < stockList.getLength(); i++) {
+                Element stockElement = (Element) stockList.item(i);
+                String symbol = stockElement.getAttribute("symbol");
+                if (symbol.equals(stockName)) {
+                    currentStockNumber = Integer.parseInt(stockElement.getTextContent());
+                }
+            }
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
+        return currentStockNumber;
+    }
+
 }
