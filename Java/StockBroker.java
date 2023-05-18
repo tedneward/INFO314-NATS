@@ -13,6 +13,8 @@ public class StockBroker {
     public StockBroker(String brokerName, Connection connection) {
         this.brokerName = brokerName;
         this.natsConnection = connection;
+
+        //This takes the class instance of processOrder and uses that as message handler
         this.dispatcher = connection.createDispatcher(this::processOrder);
         this.priceDispatcher = connection.createDispatcher();
 
