@@ -1,6 +1,10 @@
 import io.nats.client.*;
 import java.io.*;
 import java.time.Duration;
+import java.util.concurrent.Future;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 import javax.xml.parsers.*;
 import javax.xml.transform.OutputKeys;
@@ -31,9 +35,9 @@ public class StockBrokerClient{
             StockBrokerClient stockClient = new StockBrokerClient(brokerName, connection);
             stockClient.subscribe("stockmarket"); 
 
-            connection.flush(Duration.ZERO); // Flush any buffered messages
-            connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
-            connection.close(); // Close the NATS connection
+            // connection.flush(Duration.ZERO); // Flush any buffered messages
+            // connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
+            // connection.close(); // Close the NATS connection
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -45,19 +49,25 @@ public class StockBrokerClient{
                 String message = new String(msg.getData());
                 Object[] output = checkingStrategy(message);
 
-                if (output != null) {
-                    String action = (String) output[0];
-                    String stockName = (String) output[1];
-                    int numberOfShares = (int) output[2];
-                    String xmlRequest = xmlRequestBuilder(action, stockName, numberOfShares);
-                    System.out.println(xmlRequest);
+            if (output != null) {
+                String action = (String) output[0];
+                String stockName = (String) output[1];
+                int numberOfShares = (int) output[2];
+                String xmlRequest = xmlRequestBuilder(action, stockName, numberOfShares);
+                System.out.println(xmlRequest);
 
-                    // This sends buy/sell request to broker
-                    // Future<Message> incoming = nc.request(brokerName, xmlRequest.getBytes()); // awaits response from broker
-                    // Message msg = incoming.get(500, TimeUnit.MILLISECONDS);
-                    // String brokerResponse = new String(msg.getData(), StandardCharsets.UTF_8);
+                // This sends buy/sell request to broker
+                String brokerString="broker." + brokerName;
+                try{
+                    Future<Message> incoming = connection.request(brokerString, xmlRequest.getBytes());
+                    Message response = incoming.get(500, TimeUnit.MILLISECONDS);
+                    String brokerResponse = new String(response.getData(), StandardCharsets.UTF_8);
+                    System.out.println(brokerResponse);
                     updatePortfolio(stockName, numberOfShares, action);
+                } catch (Exception e){
+                    e.printStackTrace();
                 }
+            }
             });
 
             dispatcher.subscribe(market);
