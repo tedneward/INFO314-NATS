@@ -7,12 +7,15 @@ import java.util.Scanner;
 public class StockBroker {
     private String brokerName;
     private Dispatcher dispatcher;
+    private Dispatcher priceDispatcher;
     private Connection natsConnection;
 
     public StockBroker(String brokerName, Connection connection) {
         this.brokerName = brokerName;
         this.natsConnection = connection;
         this.dispatcher = connection.createDispatcher(this::processOrder);
+        this.priceDispatcher = connection.createDispatcher();
+
     }
 
     public void subscribe(String topic) {
@@ -66,10 +69,10 @@ public class StockBroker {
 
         MessageHandler messageHandler = msg -> {
             xmlData[0] = new String(msg.getData());
-            dispatcher.unsubscribe(topic);
+            priceDispatcher.unsubscribe(topic);
         };
 
-        dispatcher.subscribe(topic, messageHandler);
+        priceDispatcher.subscribe(topic, messageHandler);
 
         try {
             Thread.sleep(1000); // Wait for message to be received
