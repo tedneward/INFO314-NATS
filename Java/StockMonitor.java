@@ -39,7 +39,7 @@ public class StockMonitor {
 
                     //create the text file (don't override if exists, add to it) for each symbol it is tracking
                     //name of file is symbol it is tracking
-                    File priceLogFile = new File("./PriceLogs/" + symbol + ".txt");
+                    File priceLogFile = new File("./PriceLogs/" + symbol + "-price.log");
                     priceLogFile.getParentFile().mkdirs(); 
                     if(!priceLogFile.isFile()) {
                         //make the file
@@ -48,7 +48,7 @@ public class StockMonitor {
 
                     //get text already in file to add to it
                     StringBuilder fileContent = new StringBuilder();
-                    BufferedReader reader = new BufferedReader(new FileReader("./PriceLogs/" + symbol + ".txt"));
+                    BufferedReader reader = new BufferedReader(new FileReader("./PriceLogs/" + symbol + "-price.log"));
                     String emptyString = "";
                     while ((emptyString = reader.readLine()) != null) {
                         fileContent.append(emptyString);
@@ -63,7 +63,7 @@ public class StockMonitor {
                     String adjustment = root.getElementsByTagName("adjustment").item(0).getTextContent();
                     String adjustedPrice = root.getElementsByTagName("adjustedPrice").item(0).getTextContent();
 
-                    FileWriter writer = new FileWriter("./PriceLogs/" + symbol + ".txt");
+                    FileWriter writer = new FileWriter("./PriceLogs/" + symbol + "-price.log");
                     writer.write(fileContent.toString() + "timestamp: " + timestamp + " adjustment: " + "$" + (Integer.valueOf(adjustment) / 100.f) + " adjusted price: " + "$" + (Integer.valueOf(adjustedPrice) / 100.f));
                     writer.close();
                 }
@@ -85,11 +85,13 @@ public class StockMonitor {
                 dispatch.subscribe("NASDAQ.*");
             }
 
-            // //shut the system down
+            //shut the system down
             //System.exit(0);
+
         }
         catch (Exception err) {
             err.printStackTrace();
         }
+
     }
 }
