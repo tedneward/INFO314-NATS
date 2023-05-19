@@ -102,7 +102,7 @@ public class StockBroker {
     }
 
     private void publishResponse(String response) {
-        String responseTopic = "response." + brokerName;
+        String responseTopic = "broker." + brokerName;
         natsConnection.publish(responseTopic, response.getBytes());
     }
 
