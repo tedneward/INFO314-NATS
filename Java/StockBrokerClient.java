@@ -19,21 +19,26 @@ import org.w3c.dom.*;
 public class StockBrokerClient{
     private String brokerName;
     private Connection connection;
+    private Subscription sub;
 
-    public StockBrokerClient(String brokerName, Connection connection) {
+    public StockBrokerClient(String brokerName, Connection connection, Subscription subscription) {
         this.brokerName = brokerName;
         this.connection = connection;
+        this.sub=subscription;
     }
 
     public static void main(String...args) throws Exception {
         Scanner scanner = new Scanner(System.in);
         System.out.print("Enter the broker name: ");
         String brokerName = scanner.nextLine();
+        String brokerResponse="response." + brokerName;
 
         try {
             Connection connection = Nats.connect("nats://localhost:4222");
-            StockBrokerClient stockClient = new StockBrokerClient(brokerName, connection);
+            Subscription sub = connection.subscribe(brokerResponse);
+            StockBrokerClient stockClient = new StockBrokerClient(brokerName, connection, sub);
             stockClient.subscribe("NASDAQ.*"); 
+            // Subscription sub = connection.subscribe(brokerResponse);
 
             // connection.flush(Duration.ZERO); // Flush any buffered messages
             // connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
@@ -58,10 +63,17 @@ public class StockBrokerClient{
 
                 // This sends buy/sell request to broker
                 String brokerString="broker." + brokerName;
+                // String brokerResponse="response." + brokerName;
                 try{
-                    Future<Message> incoming = connection.request(brokerString, xmlRequest.getBytes());
-                    Message response = incoming.get(500, TimeUnit.MILLISECONDS);
-                    String brokerResponse = new String(response.getData(), StandardCharsets.UTF_8);
+                    connection.publish(brokerString, xmlRequest.getBytes());
+                    // Subscription sub = connection.subscribe(brokerResponse);
+                    Message responseMessage = sub.nextMessage(Duration.ofMillis(500));
+
+                    String brokerResponse = new String(responseMessage.getData(), StandardCharsets.UTF_8);
+
+                    // Future<Message> incoming = connection.request(brokerString, xmlRequest.getBytes());
+                    // Message response = incoming.get(500, TimeUnit.MILLISECONDS);
+                    // String brokerResponse = new String(response.getData(), StandardCharsets.UTF_8);
                     System.out.println(brokerResponse);
                     updatePortfolio(stockName, numberOfShares, action);
                 } catch (Exception e){
