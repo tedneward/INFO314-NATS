@@ -33,7 +33,7 @@ public class StockBrokerClient{
         try {
             Connection connection = Nats.connect("nats://localhost:4222");
             StockBrokerClient stockClient = new StockBrokerClient(brokerName, connection);
-            stockClient.subscribe("stockmarket"); 
+            stockClient.subscribe("NASDAQ.*"); 
 
             // connection.flush(Duration.ZERO); // Flush any buffered messages
             // connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
