@@ -1,6 +1,10 @@
 import io.nats.client.*;
 import java.sql.Timestamp;
 
+// Compiling and Running StockPublisher
+// javac -cp '.:jnats-2.16.11.jar' StockPublisher.java StockMarket.java
+// java -cp '.:jnats-2.16.11.jar' StockPublisher
+
 public class StockPublisher {
 
     private static Connection nc = null;
