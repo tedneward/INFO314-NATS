@@ -66,7 +66,7 @@ public class StockBroker {
     }
 
     private String subscribeAndGetXmlData(String symbol) {
-        String topic = "stockExchange" + symbol;
+        String topic = "NASDAQ." + symbol;
         final String[] xmlData = {""};
 
         MessageHandler messageHandler = msg -> {
@@ -115,7 +115,7 @@ public class StockBroker {
             Connection connection = Nats.connect("nats://localhost:4222");
 
             StockBroker stockBroker = new StockBroker(brokerName, connection);
-            stockBroker.subscribe(brokerName);
+            stockBroker.subscribe("broker."+ brokerName);
 
             connection.flush(Duration.ZERO); // Flush any buffered messages
             connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
