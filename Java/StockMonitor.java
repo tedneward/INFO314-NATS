@@ -40,6 +40,16 @@ public class StockMonitor {
                         priceLogFile.createNewFile();
                     } 
 
+                    //get text already in file to add to it
+                    StringBuilder fileContent = new StringBuilder();
+                    BufferedReader reader = new BufferedReader(new FileReader("./PriceLogs/" + symbol + ".txt"));
+                    String emptyString = "";
+                    while ((emptyString = reader.readLine()) != null) {
+                        fileContent.append(emptyString);
+                        fileContent.append("\r\n");
+                    }
+                    reader.close();
+
                     //now that the files have been made, add to them
                     //each message is it's own line: add the timestamp, adjustment for message, and current price of stock after 
                     //adjustment
@@ -48,7 +58,7 @@ public class StockMonitor {
                     String adjustedPrice = root.getElementsByTagName("adjustedPrice").item(0).getTextContent();
 
                     FileWriter writer = new FileWriter("./PriceLogs/" + symbol + ".txt");
-                    writer.write("timestamp: " + timestamp + " adjustment: " + adjustment + " adjusted price: " + adjustedPrice);
+                    writer.write(fileContent.toString() + "timestamp: " + timestamp + " adjustment: " + "$" + (Integer.valueOf(adjustment) / 100.f) + " adjusted price: " + "$" + (Integer.valueOf(adjustedPrice) / 100.f));
                     writer.close();
                 }
                 catch (Exception err) {
@@ -70,7 +80,7 @@ public class StockMonitor {
             }
 
             // //shut the system down
-            // System.exit(0);
+            //System.exit(0);
         }
         catch (Exception err) {
             err.printStackTrace();
