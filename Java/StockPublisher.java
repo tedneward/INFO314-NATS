@@ -1,28 +1,43 @@
-/**
- * Take the NATS URL on the command-line.
- */
+import io.nats.client.*;
+import java.sql.Timestamp;
+
+// Compiling and Running StockPublisher
+// javac -cp '.:jnats-2.16.11.jar' StockPublisher.java StockMarket.java
+// java -cp '.:jnats-2.16.11.jar' StockPublisher
+
 public class StockPublisher {
-  public static void main(String... args) throws Exception {
-      String natsURL = "nats://127.0.0.1:4222";
-      if (args.length > 0) {
-          natsURL = args[0];
-      }
 
-      System.console().writer().println("Starting stock publisher....");
+    private static Connection nc = null;
+    public static void main(String... args) throws Exception {
+        String natsURL = "nats://127.0.0.1:4222";
+        if (args.length > 0) {
+            natsURL = args[0];
+        }
 
-      StockMarket sm1 = new StockMarket(StockPublisher::publishDebugOutput, "AMZN", "MSFT", "GOOG");
-      new Thread(sm1).start();
-      StockMarket sm2 = new StockMarket(StockPublisher::publishDebugOutput, "ACTV", "BLIZ", "ROVIO");
-      new Thread(sm2).start();
-      StockMarket sm3 = new StockMarket(StockPublisher::publishDebugOutput, "GE", "GMC", "FORD");
-      new Thread(sm3).start();
+        nc = Nats.connect(natsURL);
+
+        System.console().writer().println("Connected to Nats server...");
+        System.console().writer().println("Starting stock markets...");
+        StockMarket sm1 = new StockMarket(StockPublisher::publishMessage, "AMZN", "MSFT", "GOOG", "AAPL", "TSLA", "JNJ",
+                "NFLX");
+        new Thread(sm1).start();
+        StockMarket sm2 = new StockMarket(StockPublisher::publishMessage, "JPM", "MA", "HD", "ORCL", "PEP", "BAC",
+                "BABA");
+        new Thread(sm2).start();
+        StockMarket sm3 = new StockMarket(StockPublisher::publishMessage, "COST", "ABNB", "ADBE", "SBUX", "META",
+                "PYPL", "ZM");
+        new Thread(sm3).start();
     }
 
-    public synchronized static void publishDebugOutput(String symbol, int adjustment, int price) {
-        System.console().writer().printf("PUBLISHING %s: %d -> %f\n", symbol, adjustment, (price / 100.f));
-    }
-    // When you have the NATS code here to publish a message, put "publishMessage" in
-    // the above where "publishDebugOutput" currently is
     public synchronized static void publishMessage(String symbol, int adjustment, int price) {
-    } 
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        
+        String stockExchange = "NASDAQ.";
+        String xml = "<message sent=\"" + timestamp + "\">" +
+                "<stock><name>" + symbol + "</name>" +
+                "<adjustment>" + adjustment + "</adjustment>" +
+                "<adjustedPrice>" + price + "</adjustedPrice></stock></message>";
+
+        nc.publish(stockExchange + symbol, xml.getBytes());
+    }
 }
