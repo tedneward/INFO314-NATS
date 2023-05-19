@@ -62,11 +62,11 @@ public class StockMonitor {
             if(args.length != 0) {
                 for(int i = 0; i < args.length; i++) {
                     //dispatch for whatever was sent through the console
-                    dispatch.subscribe(args[i]);
+                    dispatch.subscribe("NASDAQ." + args[i]);
                 }
             } else {
-                //dispatch if no symbols were specified
-                dispatch.subscribe("*");
+                //dispatch if no symbols were specified go to this.>
+                dispatch.subscribe("NASDAQ.*");
             }
 
             // //shut the system down
