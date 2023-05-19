@@ -16,6 +16,12 @@ public class StockMonitor {
             //start the connection with the nats server
             Connection nc = Nats.connect("nats://localhost:4222");
             //clear pricelogs files folder -- our choice
+            File priceLogs = new File("./PriceLogs");
+            String[] files = priceLogs.list();
+            for(String s: files){
+                File currentFile = new File(priceLogs.getPath(), s);
+                currentFile.delete();
+            }
 
             //this listens for things being sent to the server and finds them on a thread
             Dispatcher dispatch = nc.createDispatcher((msg) -> {
