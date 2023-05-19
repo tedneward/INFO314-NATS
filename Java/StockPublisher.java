@@ -1,7 +1,5 @@
 import io.nats.client.*;
 import java.sql.Timestamp;
-import java.time.Duration;
-import java.nio.charset.StandardCharsets;
 
 public class StockPublisher {
 
