@@ -17,28 +17,39 @@ import javax.xml.xpath.*;
 import org.w3c.dom.*;
 
 public class StockBrokerClient{
+    private String clientName;
     private String brokerName;
     private Connection connection;
     private Subscription sub;
+    private String clientPortfolio;
+    private String clientStrategy;
 
-    public StockBrokerClient(String brokerName, Connection connection, Subscription subscription) {
+    public StockBrokerClient(String clientName, String brokerName, Connection connection, Subscription subscription, String portfolio, String strategy) {
+        this.clientName = clientName;
         this.brokerName = brokerName;
         this.connection = connection;
         this.sub=subscription;
+        this.clientPortfolio=portfolio;
+        this.clientStrategy=strategy;
     }
 
     public static void main(String...args) throws Exception {
         Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter client name: ");
+        String clientName = scanner.nextLine();
+
         System.out.print("Enter the broker name: ");
         String brokerName = scanner.nextLine();
+
+        String clientPortfolio="../Clients/portfolio-1.xml";
+        String clientStrategy="../Clients/strategy-1.xml";
         String brokerResponse="response." + brokerName;
 
         try {
             Connection connection = Nats.connect("nats://localhost:4222");
             Subscription sub = connection.subscribe(brokerResponse);
-            StockBrokerClient stockClient = new StockBrokerClient(brokerName, connection, sub);
+            StockBrokerClient stockClient = new StockBrokerClient(clientName, brokerName, connection, sub, clientPortfolio, clientStrategy);
             stockClient.subscribe("NASDAQ.*"); 
-            // Subscription sub = connection.subscribe(brokerResponse);
 
             // connection.flush(Duration.ZERO); // Flush any buffered messages
             // connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
@@ -61,14 +72,14 @@ public class StockBrokerClient{
                 String xmlRequest = xmlRequestBuilder(action, stockName, numberOfShares);
                 System.out.println(xmlRequest);
 
-                // This sends buy/sell request to broker
+                // This sends buy/sell request to broker 
                 String brokerString="broker." + brokerName;
                 // String brokerResponse="response." + brokerName;
                 try{
                     connection.publish(brokerString, xmlRequest.getBytes());
+
                     // Subscription sub = connection.subscribe(brokerResponse);
                     Message responseMessage = sub.nextMessage(Duration.ofMillis(500));
-
                     String brokerResponse = new String(responseMessage.getData(), StandardCharsets.UTF_8);
 
                     // Future<Message> incoming = connection.request(brokerString, xmlRequest.getBytes());
@@ -88,10 +99,8 @@ public class StockBrokerClient{
         }
     }
 
-
-    // Takes String message from publisher and against checks strategy document
-    // returns Object[] with the action, stock name, amount or null for do nothing
-    public static Object[] checkingStrategy(String message){
+    // Takes String message from publisher, checks strategy, returns Object[] with the action, stock name, amount or null
+    public Object[] checkingStrategy(String message){
         Object[] params = new Object[3];
         try{
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -108,7 +117,7 @@ public class StockBrokerClient{
             int adjustment = Integer.parseInt(adjustedPriceElement.getTextContent());
 
             // Load the strategy XML file
-            File strategyXmlFile = new File("../Clients/strategy-1.xml");
+            File strategyXmlFile = new File(clientStrategy);
             DocumentBuilderFactory dbFactory2 = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder2 = dbFactory2.newDocumentBuilder();
             Document doc2 = dBuilder2.parse(strategyXmlFile);
@@ -146,6 +155,9 @@ public class StockBrokerClient{
                             int aboveThreshold = Integer.parseInt(aboveNode.getTextContent());
                             if (adjustment > aboveThreshold) {
                                 int sellValue=checkPortfolio(name);
+                                if(sellValue==0){
+                                    return null;
+                                }
                                 params[0] = "sell";
                                 params[1] = stockSymbol;
                                 params[2] = sellValue;
@@ -162,14 +174,15 @@ public class StockBrokerClient{
     }
 
     // creates xml request to stock broker
-    public static String xmlRequestBuilder(String action, String stockName, int numberOfShares){
+    public String xmlRequestBuilder(String action, String stockName, int numberOfShares){
         try{
         DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
 
-        // Create the root element <order>
         Document doc = docBuilder.newDocument();
         Element rootElement = doc.createElement("order");
+        rootElement.setAttribute("clientId", clientName);
+        rootElement.setAttribute("brokerId", brokerName);
         doc.appendChild(rootElement);
 
         Element buyElement = doc.createElement(action);
@@ -177,7 +190,6 @@ public class StockBrokerClient{
         buyElement.setAttribute("amount", String.valueOf(numberOfShares));
         rootElement.appendChild(buyElement);
 
-        // Convert the Document to a String
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
         Transformer transformer = transformerFactory.newTransformer();
         transformer.setOutputProperty(OutputKeys.INDENT, "yes");
@@ -191,9 +203,9 @@ public class StockBrokerClient{
     }
 
     // updates portfolio returns nothing
-    public static void updatePortfolio(String symbol, int amount, String action){
+    public void updatePortfolio(String symbol, int amount, String action){
         try{
-            File xmlFile = new File("../Clients/portfolio-1.xml");
+            File xmlFile = new File(clientPortfolio);
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
             Document doc = dBuilder.parse(xmlFile);
@@ -235,7 +247,7 @@ public class StockBrokerClient{
                 // Save the changes back to the XML file
                 TransformerFactory transformerFactory = TransformerFactory.newInstance();
                 Transformer transformer = transformerFactory.newTransformer();
-                transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+                transformer.setOutputProperty(OutputKeys.INDENT, "no");
                 DOMSource source = new DOMSource(doc);
                 StreamResult result = new StreamResult(new FileWriter(xmlFile));
                 transformer.transform(source, result);
@@ -250,10 +262,10 @@ public class StockBrokerClient{
     }
 
     // returns current number of stock in portfolio
-    public static int checkPortfolio(String stockName){
+    public int checkPortfolio(String stockName){
         int currentStockNumber=-1;
         try{
-            File strategyXmlFile = new File("../Clients/portfolio-1.xml");
+            File strategyXmlFile = new File(clientPortfolio);
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
             Document doc = dBuilder.parse(strategyXmlFile);
@@ -271,5 +283,4 @@ public class StockBrokerClient{
         }
         return currentStockNumber;
     }
-
 }
