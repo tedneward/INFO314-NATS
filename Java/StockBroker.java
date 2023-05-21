@@ -9,6 +9,7 @@ public class StockBroker {
     private Dispatcher dispatcher;
     private Dispatcher priceDispatcher;
     private Connection natsConnection;
+    private String clientName;
 
     public StockBroker(String brokerName, Connection connection) {
         this.brokerName = brokerName;
@@ -98,11 +99,49 @@ public class StockBroker {
     }
 
     private String constructResponse(String order, double totalAmount) {
-        return "<orderReceipt>" + order + "<complete amount=\"" + totalAmount + "\" /></orderReceipt>";
+        String orderClientName = extractClientName(order);
+        
+        String orderPattern = "<order>(.*?)</order>";
+
+        // Create a Pattern object
+        Pattern regex = Pattern.compile(orderPattern);
+
+        // Create a Matcher object and apply the pattern to the input XML
+        Matcher matcher = regex.matcher(order);
+
+        String newOrderContent = "";
+
+        // Find the first occurrence of the pattern
+        if (matcher.find()) {
+            // Extract the content between the <order> tags
+            newOrderContent = matcher.group(1);
+        
+        }
+        return "<orderReceipt brokerId = \"" + brokerName + "\" clientId = \"" + orderClientName + "\" >" + newOrderContent + "<complete amount=\"" + totalAmount + "\" /></orderReceipt>";
+    }
+
+    private String extractClientName(String order){
+        String pattern = "brokerId=\"([^\"]+)\"\\s+clientId=\"([^\"]+)\"";
+        Pattern client_broker_pattern = Pattern.compile(pattern);
+        Matcher matcher = client_broker_pattern.matcher(order);
+        String clientId = "";
+        String brokerId = "";
+        if (matcher.find()) {
+            brokerId = matcher.group(1);
+            clientId = matcher.group(2);
+            this.clientName = clientId;
+            this.brokerName = brokerId;
+        } else {
+            clientId = "N/A";
+        }
+        
+        return clientId;
+
     }
 
     private void publishResponse(String response) {
-        String responseTopic = "broker." + brokerName;
+
+        String responseTopic = "response." + clientName ;
         natsConnection.publish(responseTopic, response.getBytes());
     }
 
