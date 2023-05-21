@@ -31,6 +31,7 @@ public class StockBroker {
 
     private void processOrder(Message message) {
         String order = new String(message.getData());
+        System.out.println(order);
 
         try {
             Thread.sleep(3000); // Simulate order execution
@@ -140,9 +141,11 @@ public class StockBroker {
     }
 
     private void publishResponse(String response) {
-
+      
         String responseTopic = "response." + clientName ;
+
         natsConnection.publish(responseTopic, response.getBytes());
+        System.out.println(response);
     }
 
     public static void main(String... args) {
@@ -156,13 +159,12 @@ public class StockBroker {
             StockBroker stockBroker = new StockBroker(brokerName, connection);
             stockBroker.subscribe("broker."+ brokerName);
 
-            connection.flush(Duration.ZERO); // Flush any buffered messages
-            connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
-            connection.close(); // Close the NATS connection
+            // connection.flush(Duration.ZERO); // Flush any buffered messages
+            // connection.flush(Duration.ofSeconds(100)); // Wait for 100 seconds to receive messages
+            // connection.close(); // Close the NATS connection
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 }
-
 

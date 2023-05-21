@@ -1,6 +1,7 @@
 {
     "java.project.referencedLibraries": [
         "lib/**/*.jar",
-        "Java/jnats-2.16.11.jar"
+        "Java/jnats-2.16.11.jar",
+        "Java/lib/jnats-2.16.11.jar"
     ]
 }
