@@ -41,9 +41,17 @@ public class StockBrokerClient{
         System.out.print("Enter the broker name: ");
         String brokerName = scanner.nextLine();
 
-        String clientPortfolio="../Clients/portfolio-1.xml";
-        String clientStrategy="../Clients/strategy-1.xml";
-        String brokerResponse="response." + brokerName;
+        System.out.print("Enter strategy doc: ");
+        String strategyDoc = scanner.nextLine();
+        String clientStrategy="../Clients/"+strategyDoc+".xml";
+
+        System.out.print("Enter portfolio doc: ");
+        String portfolioDoc = scanner.nextLine();
+        String clientPortfolio="../Clients/"+portfolioDoc+".xml";
+
+        // String clientPortfolio="../Clients/portfolio-2.xml";
+        // String clientStrategy="../Clients/strategy-2.xml";
+        String brokerResponse="response." + clientName;
 
         try {
             Connection connection = Nats.connect("nats://localhost:4222");
