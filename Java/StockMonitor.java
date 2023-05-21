@@ -15,7 +15,13 @@ public class StockMonitor {
         try {
             //start the connection with the nats server
             Connection nc = Nats.connect("nats://localhost:4222");
-            //clear pricelogs files folder -- our choice
+            //clear pricelogs files folder -- our choice -- doesn't work with running multiple monitors
+            // File priceLogs = new File("./PriceLogs");
+            // String[] files = priceLogs.list();
+            // for(String s: files){
+            //     File currentFile = new File(priceLogs.getPath(), s);
+            //     currentFile.delete();
+            // }
 
             //this listens for things being sent to the server and finds them on a thread
             Dispatcher dispatch = nc.createDispatcher((msg) -> {
@@ -33,12 +39,22 @@ public class StockMonitor {
 
                     //create the text file (don't override if exists, add to it) for each symbol it is tracking
                     //name of file is symbol it is tracking
-                    File priceLogFile = new File("./PriceLogs/" + symbol + ".txt");
+                    File priceLogFile = new File("./PriceLogs/" + symbol + "-price.log");
                     priceLogFile.getParentFile().mkdirs(); 
                     if(!priceLogFile.isFile()) {
                         //make the file
                         priceLogFile.createNewFile();
                     } 
+
+                    //get text already in file to add to it
+                    StringBuilder fileContent = new StringBuilder();
+                    BufferedReader reader = new BufferedReader(new FileReader("./PriceLogs/" + symbol + "-price.log"));
+                    String emptyString = "";
+                    while ((emptyString = reader.readLine()) != null) {
+                        fileContent.append(emptyString);
+                        fileContent.append("\r\n");
+                    }
+                    reader.close();
 
                     //now that the files have been made, add to them
                     //each message is it's own line: add the timestamp, adjustment for message, and current price of stock after 
@@ -47,8 +63,8 @@ public class StockMonitor {
                     String adjustment = root.getElementsByTagName("adjustment").item(0).getTextContent();
                     String adjustedPrice = root.getElementsByTagName("adjustedPrice").item(0).getTextContent();
 
-                    FileWriter writer = new FileWriter("./PriceLogs/" + symbol + ".txt");
-                    writer.write("timestamp: " + timestamp + " adjustment: " + adjustment + " adjusted price: " + adjustedPrice);
+                    FileWriter writer = new FileWriter("./PriceLogs/" + symbol + "-price.log");
+                    writer.write(fileContent.toString() + "timestamp: " + timestamp + " adjustment: " + "$" + (Integer.valueOf(adjustment) / 100.f) + " adjusted price: " + "$" + (Integer.valueOf(adjustedPrice) / 100.f));
                     writer.close();
                 }
                 catch (Exception err) {
@@ -69,11 +85,13 @@ public class StockMonitor {
                 dispatch.subscribe("NASDAQ.*");
             }
 
-            // //shut the system down
-            // System.exit(0);
+            //shut the system down
+            //System.exit(0);
+
         }
         catch (Exception err) {
             err.printStackTrace();
         }
+
     }
 }
