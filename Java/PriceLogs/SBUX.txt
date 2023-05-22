@@ -1,0 +1,1 @@
+timestamp: 2023-05-21 16:40:33.166 adjustment: -71 adjusted price: 9348

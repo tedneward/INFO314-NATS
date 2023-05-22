@@ -3,11 +3,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.time.Duration;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class StockBroker {
     private String brokerName;
     private Dispatcher dispatcher;
-    private Dispatcher priceDispatcher;
     private Connection natsConnection;
     private String clientName;
 
@@ -17,7 +17,7 @@ public class StockBroker {
 
         //This takes the class instance of processOrder and uses that as message handler
         this.dispatcher = connection.createDispatcher(this::processOrder);
-        this.priceDispatcher = connection.createDispatcher();
+        
 
     }
 
@@ -45,13 +45,13 @@ public class StockBroker {
     }
 
     private double calculateTotalAmount(String order) {
-        Pattern pattern = Pattern.compile("<(buy|sell) symbol=\"(\\w+)\" amount=\"(\\d+)\"\\s*/>");
+        Pattern pattern = Pattern.compile("<(buy|sell)\\s+amount=\"(\\d+)\"\\s+symbol=\"(\\w+)\"\\s*/>");
         Matcher matcher = pattern.matcher(order);
 
-        if (matcher.matches()) {
+        if (matcher.find()) {
             String type = matcher.group(1);
-            String symbol = matcher.group(2);
-            double amount = Double.parseDouble(matcher.group(3));
+            double amount = Double.parseDouble(matcher.group(2));
+            String symbol = matcher.group(3);
             double stockPrice = getStockPrice(symbol);
             double fee = 0.1 * (type.equals("buy") ? stockPrice * amount : -stockPrice * amount);
             double totalAmount = type.equals("buy") ? stockPrice * amount + fee : stockPrice * amount - fee;
@@ -66,17 +66,20 @@ public class StockBroker {
         String xmlData = subscribeAndGetXmlData(symbol);
         return extractStockPrice(xmlData);
     }
-
+ 
     private String subscribeAndGetXmlData(String symbol) {
+        Dispatcher priceDispatcher = this.natsConnection.createDispatcher((msg) -> {
+            try {
+                String response = new String(msg.getData());
+            } catch (Exception e) {
+                // TODO: handle exception
+            }
+        });
         String topic = "NASDAQ." + symbol;
-        final String[] xmlData = {""};
-
-        MessageHandler messageHandler = msg -> {
-            xmlData[0] = new String(msg.getData());
-            priceDispatcher.unsubscribe(topic);
-        };
-
-        priceDispatcher.subscribe(topic, messageHandler);
+        // AtomicReference<String> xmlData = new AtomicReference<>("");
+        
+        priceDispatcher.subscribe(topic);
+        
 
         try {
             Thread.sleep(1000); // Wait for message to be received
@@ -84,7 +87,7 @@ public class StockBroker {
             e.printStackTrace();
         }
 
-        return xmlData[0];
+        return xmlData.get();
     }
 
     private double extractStockPrice(String xmlData) {
