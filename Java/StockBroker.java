@@ -68,26 +68,15 @@ public class StockBroker {
     }
  
     private String subscribeAndGetXmlData(String symbol) {
-        Dispatcher priceDispatcher = this.natsConnection.createDispatcher((msg) -> {
-            try {
-                String response = new String(msg.getData());
-            } catch (Exception e) {
-                // TODO: handle exception
-            }
-        });
-        String topic = "NASDAQ." + symbol;
-        // AtomicReference<String> xmlData = new AtomicReference<>("");
-        
-        priceDispatcher.subscribe(topic);
-        
-
         try {
-            Thread.sleep(1000); // Wait for message to be received
-        } catch (InterruptedException e) {
+            String topic = "NASDAQ." + symbol;
+            Subscription sub = natsConnection.subscribe(topic);
+            String xmlData = new String(sub.nextMessage(1000).getData());
+            return xmlData;
+        } catch (Exception e) {
             e.printStackTrace();
-        }
-
-        return xmlData.get();
+            return null;
+        }      
     }
 
     private double extractStockPrice(String xmlData) {
